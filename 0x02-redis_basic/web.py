@@ -7,6 +7,7 @@ from typing import Callable
 
 r = redis.Redis()
 
+
 def get_page(url: str) -> str:
     """Fetch a page and cache the result with expiration."""
     cache_key = f"count:{url}"
