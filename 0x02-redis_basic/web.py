@@ -3,7 +3,6 @@
 
 import redis
 import requests
-from typing import Callable
 
 r = redis.Redis()
 
