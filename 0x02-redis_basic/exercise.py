@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
 '''A module for using the Redis NoSQL data storage.
 '''
-
 import uuid
 import redis
-from typing import Union, Callable, Any
+from functools import wraps
+from typing import Any, Callable, Union
 
 
 def count_calls(method: Callable) -> Callable:
     '''Tracks the number of calls made to a method in a Cache class.
     '''
-    def wrapper(self, *args, **kwargs):
-        '''Wrapper function to increment call count and invoke method.
+    @wraps(method)
+    def invoker(self, *args, **kwargs) -> Any:
+        '''Invokes the given method after incrementing its call counter.
         '''
         if isinstance(self._redis, redis.Redis):
             self._redis.incr(method.__qualname__)
         return method(self, *args, **kwargs)
-    return wrapper
+    return invoker
 
 
 def call_history(method: Callable) -> Callable:
     '''Tracks the call details of a method in a Cache class.
     '''
-    def wrapper(self, *args, **kwargs) -> Any:
-        '''Wrapper function to store call history and invoke method.
+    @wraps(method)
+    def invoker(self, *args, **kwargs) -> Any:
+        '''Returns the method's output after storing its inputs and output.
         '''
         in_key = '{}:inputs'.format(method.__qualname__)
         out_key = '{}:outputs'.format(method.__qualname__)
@@ -33,7 +35,7 @@ def call_history(method: Callable) -> Callable:
         if isinstance(self._redis, redis.Redis):
             self._redis.rpush(out_key, output)
         return output
-    return wrapper
+    return invoker
 
 
 def replay(fn: Callable) -> None:
@@ -47,7 +49,9 @@ def replay(fn: Callable) -> None:
     fxn_name = fn.__qualname__
     in_key = '{}:inputs'.format(fxn_name)
     out_key = '{}:outputs'.format(fxn_name)
-    fxn_call_count = int(redis_store.get(fxn_name) or 0)
+    fxn_call_count = 0
+    if redis_store.exists(fxn_name) != 0:
+        fxn_call_count = int(redis_store.get(fxn_name))
     print('{} was called {} times:'.format(fxn_name, fxn_call_count))
     fxn_inputs = redis_store.lrange(in_key, 0, -1)
     fxn_outputs = redis_store.lrange(out_key, 0, -1)
@@ -55,7 +59,7 @@ def replay(fn: Callable) -> None:
         print('{}(*{}) -> {}'.format(
             fxn_name,
             fxn_input.decode("utf-8"),
-            fxn_output.decode("utf-8"),
+            fxn_output,
         ))
 
 
